@@ -4,17 +4,16 @@ from .models import Usuario
 
 class UsuarioAdmin(UserAdmin):
     model = Usuario
-    # TEMPORAL: Quitar 'cliente' de list_display hasta que arreglemos el modelo
     list_display = ['username', 'email', 'rol', 'activo', 'date_joined']
     list_filter = ['rol', 'activo', 'date_joined']
     fieldsets = UserAdmin.fieldsets + (
         ('Información TicaShop', {
-            'fields': ('rol', 'telefono', 'activo')  # Quitar 'cliente' temporalmente
+            'fields': ('rol', 'telefono', 'activo')  
         }),
     )
     add_fieldsets = UserAdmin.add_fieldsets + (
         ('Información TicaShop', {
-            'fields': ('rol', 'telefono', 'activo')  # Quitar 'cliente' temporalmente
+            'fields': ('rol', 'telefono', 'activo') 
         }),
     )
 

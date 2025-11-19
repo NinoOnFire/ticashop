@@ -15,7 +15,6 @@ class Usuario(AbstractUser):
     fecha_actualizacion = models.DateTimeField(auto_now=True)
     
     def save(self, *args, **kwargs):
-        # Si es superuser y no tiene rol asignado, asignar Administrador
         if self.is_superuser and self.rol == 'Cliente':
             self.rol = 'Administrador'
         super().save(*args, **kwargs)

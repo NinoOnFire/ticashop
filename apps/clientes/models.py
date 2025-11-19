@@ -1,18 +1,16 @@
 from django.db import models
 
-from apps.usuarios.models import Usuario  # <--- IMPORTACIÓN AÑADIDA
+from apps.usuarios.models import Usuario  
 
 class Cliente(models.Model):
-    # --- CAMPO AÑADIDO ---
-    # Esta es la conexión clave con el modelo Usuario
     user = models.OneToOneField(
         Usuario, 
         on_delete=models.CASCADE, 
         related_name='perfil_cliente',
-        null=True,  # <--- AÑADE ESTO
-        blank=True  # <--- Y AÑADE ESTO
+        null=True,
+        blank=True 
     )
-    # ---------------------
+
     
     rut = models.CharField(max_length=12, unique=True)
     razon_social = models.CharField(max_length=255)

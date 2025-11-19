@@ -13,34 +13,29 @@ from apps.productos.models import Producto
 from apps.ventas.models import Pedido
 from apps.documentos.models import DocumentoVenta
 from datetime import timedelta
-# ========== FUNCIÓN AUXILIAR ==========
+
 def es_administrador(user):
     """Verifica si el usuario es administrador"""
     return user.is_authenticated and user.rol == 'Administrador'
 
 
-# ========== DASHBOARD PRINCIPAL (HECHO PÚBLICO) ==========
-# ¡Quitamos @login_required de aquí!
+
 def dashboard(request):
     
-    # --- 1. LÓGICA PARA INVITADOS (NO AUTENTICADOS) ---
     if not request.user.is_authenticated:
-        # Es un visitante, le mostramos la tienda.
         total_productos = Producto.objects.filter(activo=True).count()
         productos = Producto.objects.filter(activo=True)
         
         context = {
-            'usuario': request.user, # Será 'AnonymousUser'
+            'usuario': request.user, 
             'total_productos': total_productos,
             'productos': productos,
         }
         return render(request, 'dashboard/cliente_dashboard.html', context)
 
-    # --- 2. LÓGICA PARA USUARIOS AUTENTICADOS ---
-    # Si llegamos aquí, el usuario SÍ está logueado.
+
     usuario = request.user
     rol = usuario.rol.strip() if usuario.rol else ''
-
     # --- Panel de ADMINISTRADOR ---
     if rol == 'Administrador':
         total_usuarios = Usuario.objects.count()
@@ -84,21 +79,21 @@ def dashboard(request):
         return render(request, 'dashboard/vendedor_dashboard.html', context)
     
     # --- Panel de TESORERÍA (opcional) ---
-    elif rol == 'Tesoreria': # Ya corregimos el acento en el paso anterior
+    elif rol == 'Tesoreria':
         hoy = timezone.localdate()
 
-        # Conteo de Pedidos (usando la lógica existente)
+        # Conteo de Pedidos
         total_pedidos = Pedido.objects.count()
         pedidos_pendientes = Pedido.objects.filter(estado='Pendiente').count()
         pedidos_completados = Pedido.objects.filter(estado='Completado').count()
         
-        # 1. Alertas de Facturas Vencidas (Busca las que estén EMITIDAS/PAGO PARCIAL Y vencidas)
+        # 1. Alertas de Facturas Vencidas
         facturas_vencidas = DocumentoVenta.objects.filter(
             estado__in=['Emitida', 'Pago Parcial'],
             fecha_vencimiento__lt=hoy
         )
         
-        # 2. Alertas de Facturas Por Vencer (Ej: en los próximos 7 días)
+        # 2. Alertas de Facturas Por Vencer
         fecha_limite_futura = hoy + timedelta(days=7)
         facturas_por_vencer = DocumentoVenta.objects.filter(
             estado__in=['Emitida', 'Pago Parcial'],
@@ -110,14 +105,14 @@ def dashboard(request):
             'total_pedidos': total_pedidos,
             'pedidos_pendientes': pedidos_pendientes,
             'pedidos_completados': pedidos_completados,
-            'facturas_vencidas': facturas_vencidas, # <-- Nuevo para el template
-            'facturas_por_vencer': facturas_por_vencer, # <-- Nuevo para el template
+            'facturas_vencidas': facturas_vencidas,
+            'facturas_por_vencer': facturas_por_vencer, 
         }
         return render(request, 'dashboard/tesoreria_dashboard.html', context)
     
-    # --- Panel de CLIENTE ---
+
     elif rol == 'Cliente':
-        # (Ya quitamos la redirección a 'completar_perfil' de aquí)
+      
         total_productos = Producto.objects.filter(activo=True).count()
         productos = Producto.objects.filter(activo=True)
         
@@ -128,7 +123,7 @@ def dashboard(request):
         }
         return render(request, 'dashboard/cliente_dashboard.html', context)
 
-    # Si tiene rol inválido (pero está logueado)
+
     return redirect('usuarios:login')
 
 

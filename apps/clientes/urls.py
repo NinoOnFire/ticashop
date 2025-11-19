@@ -8,7 +8,6 @@ urlpatterns = [
     path('login/', auth_views.LoginView.as_view(template_name='registration/login.html'), name='login'),
     path('logout/', auth_views.LogoutView.as_view(), name='logout'),
         
-    # 🔥 CRUD de Proveedores
     path('proveedores/', views.listar_proveedores, name='listar_proveedores'),
     path('proveedores/crear/', views.crear_proveedor, name='crear_proveedor'),
     path('proveedores/editar/<int:proveedor_id>/', views.editar_proveedor, name='editar_proveedor'),

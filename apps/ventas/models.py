@@ -95,7 +95,6 @@ class DetallePedido(models.Model):
         """Calcula automáticamente el subtotal al guardar"""
         self.subtotal = self.cantidad * self.precio_unitario_venta
         super().save(*args, **kwargs)
-        # Actualizar el total del pedido
         self.pedido.calcular_total()
     
     def delete(self, *args, **kwargs):

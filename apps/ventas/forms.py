@@ -4,7 +4,6 @@ from apps.clientes.models import Cliente
 from apps.documentos.models import DocumentoVenta
 from datetime import date
 
-# Definición de las opciones de pago para el CLIENTE (sin Efectivo)
 CLIENTE_MEDIOS_PAGO_OPCIONES = [
     ('Transferencia', 'Transferencia'),
     ('Tarjeta Crédito', 'Tarjeta de Crédito'),
@@ -17,9 +16,7 @@ class CheckoutForm(forms.ModelForm):
     Muestra opciones de pago SÓLO ONLINE.
     """
     
-    # 1. Redefinimos el campo de pago con las opciones limitadas
     medio_de_pago = forms.ChoiceField(
-        # Usamos las opciones restringidas
         choices=CLIENTE_MEDIOS_PAGO_OPCIONES, 
         label="Medio de Pago",
         widget=forms.Select(attrs={'class': 'form-select'})
@@ -92,7 +89,6 @@ class TipoDocumentoForm(forms.Form):
     )
 
 class BoletaForm(forms.Form):
-    # Usamos las opciones completas para las vistas que no son el checkout directo del cliente
     medio_de_pago = forms.ChoiceField(
         choices=DocumentoVenta.MEDIOS_PAGO,
         widget=forms.Select(attrs={'class': 'form-control'}),
@@ -109,7 +105,6 @@ class BoletaForm(forms.Form):
     )
 
 class FacturaForm(forms.Form):
-    # La clase FacturaForm mantiene las opciones completas de DocumentoVenta.MEDIOS_PAGO
     razon_social = forms.CharField(
         label="Razón Social",
         required=True,
@@ -147,14 +142,13 @@ class FacturaForm(forms.Form):
         widget=forms.TextInput(attrs={'class': 'form-control'})
     )
     
-    # Este campo mantiene las opciones completas (incluyendo 'Efectivo' para el Vendedor)
     medio_de_pago = forms.ChoiceField(
         label="Medio de Pago",
         choices=[
             ('Transferencia', 'Transferencia'),
             ('Tarjeta Crédito', 'Tarjeta de Crédito'),
             ('Tarjeta Débito', 'Tarjeta de Débito'),
-            ('Efectivo', 'Efectivo'), # Efectivo sigue aquí
+            ('Efectivo', 'Efectivo'), 
             ('Crédito Empresa', 'Crédito Empresa'),
         ],
         required=True,

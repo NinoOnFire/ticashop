@@ -68,7 +68,6 @@ class ClienteRegistrationForm(UserCreationForm):
 
     class Meta:
         model = Usuario
-        # Campos que verá el usuario al registrarse
         fields = ['username', 'email'] 
         widgets = {
             'username': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Nombre de usuario'}),
@@ -83,8 +82,8 @@ class ClienteRegistrationForm(UserCreationForm):
         Sobrescribe el guardado para forzar el rol de Cliente.
         """
         user = super().save(commit=False)
-        user.rol = 'Cliente' # <-- ¡LA MAGIA ESTÁ AQUÍ!
-        user.is_active = True # Activa la cuenta de inmediato
+        user.rol = 'Cliente' 
+        user.is_active = True 
         if commit:
             user.save()
         return user

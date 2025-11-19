@@ -2,7 +2,6 @@ from django import forms
 from .models import Proveedor, Cliente
 from django.core.exceptions import ValidationError
 
-# --- FUNCIÓN CENTRAL DE VALIDACIÓN DE RUT ---
 def validar_rut(rut_completo):
     """
     Verifica que el RUT sea válido (formato y dígito verificador).
@@ -14,15 +13,11 @@ def validar_rut(rut_completo):
     if not all(c.isalnum() for c in rut_completo):
         raise ValidationError("El RUT solo puede contener números y la letra 'K'.")
 
-    # Separar cuerpo y dígito verificador (DV)
     cuerpo = rut_completo[:-1]
     dv = rut_completo[-1]
     
-    # El cuerpo debe ser numérico
     if not cuerpo.isdigit():
         raise ValidationError("El cuerpo del RUT debe ser numérico.")
-
-    # Calcular dígito verificador esperado (Algoritmo Módulo 11)
     try:
         reverso = cuerpo[::-1]
         multiplicador = 2
@@ -46,12 +41,9 @@ def validar_rut(rut_completo):
     except Exception:
         raise ValidationError("Formato de RUT inválido. Ej: 12345678-K")
 
-    return rut_completo # Devuelve el RUT limpio
+    return rut_completo
 
 
-# ====================================================================
-# FORMS (SE APLICAN LAS VALIDACIONES)
-# ====================================================================
 
 class ProveedorForm(forms.ModelForm):
     class Meta:
@@ -67,7 +59,7 @@ class ProveedorForm(forms.ModelForm):
     def clean_rut(self):
         """Aplica la validación de RUT al campo del formulario."""
         rut = self.cleaned_data.get('rut')
-        return validar_rut(rut) # Llama a la función externa
+        return validar_rut(rut) 
 
 
 class ClienteForm(forms.ModelForm):
@@ -88,7 +80,7 @@ class ClienteForm(forms.ModelForm):
     def clean_rut(self):
         """Aplica la validación de RUT al campo del formulario."""
         rut = self.cleaned_data.get('rut')
-        return validar_rut(rut) # Llama a la función externa
+        return validar_rut(rut)
 
 
 class CompletarPerfilForm(forms.ModelForm):
@@ -123,4 +115,4 @@ class CompletarPerfilForm(forms.ModelForm):
     def clean_rut(self):
         """Aplica la validación de RUT al campo del formulario."""
         rut = self.cleaned_data.get('rut')
-        return validar_rut(rut) # Llama a la función externa
+        return validar_rut(rut)

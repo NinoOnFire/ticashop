@@ -10,14 +10,11 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, PatternFill
 from django.db.models import Sum, Count
 
-# Modelos
 from apps.ventas.models import Pedido, DetallePedido
 from apps.productos.models import Producto
 from apps.clientes.models import Cliente
-# ¡IMPORTACIÓN CLAVE! Añadimos Pago aquí
 from apps.documentos.models import DocumentoVenta, DetalleDocumento, Pago
 
-# Forms
 from apps.ventas.forms import (
     PedidoForm, TipoDocumentoForm, BoletaForm, 
     FacturaForm, CheckoutForm
@@ -31,9 +28,7 @@ from decimal import Decimal
 
 from apps.productos.models import Producto
 
-# ===============================================
 # VISTAS DEL CARRITO DE CLIENTE
-# ===============================================
 
 @login_required
 def cliente_add_to_cart(request, producto_id):
@@ -121,9 +116,7 @@ def cliente_checkout(request):
     Muestra el formulario de checkout y procesa la compra.
     Ahora redirige al cliente al documento (Boleta/Factura) tras la compra.
     """
-    # ----------------------------------------------------
     # Lógica de verificación de cliente y carrito
-    # ----------------------------------------------------
     if request.user.rol != 'Cliente':
         return redirect('usuarios:dashboard')
 
@@ -136,11 +129,10 @@ def cliente_checkout(request):
         # Intenta obtener el perfil del cliente
         cliente_actual = request.user.perfil_cliente
     except Cliente.DoesNotExist:
-        # ¡No existe! Lo mandamos a crear su perfil.
         messages.error(request, '¡Debes completar tu perfil antes de poder comprar!')
         return redirect('clientes:completar_perfil')
 
-    # Lógica de cálculo del carrito (se mantiene)
+    # Lógica de cálculo del carrito
     product_ids = cart.keys()
     productos_en_db = Producto.objects.filter(id__in=product_ids)
     
@@ -158,9 +150,7 @@ def cliente_checkout(request):
             })
 
 
-    # ----------------------------------------------------
     # Procesamiento del POST
-    # ----------------------------------------------------
     if request.method == 'POST':
         form = CheckoutForm(request.POST, instance=cliente_actual)
         tipo_documento = request.POST.get('tipo_documento', 'Boleta')
@@ -253,9 +243,6 @@ def cliente_checkout(request):
         else:
             messages.error(request, 'Por favor, corrige los errores en el formulario.')
 
-    # ----------------------------------------------------
-    # Procesamiento del GET
-    # ----------------------------------------------------
     else: 
         form = CheckoutForm(instance=cliente_actual)
 
@@ -266,10 +253,9 @@ def cliente_checkout(request):
     }
     return render(request, 'ventas/checkout.html', context)
 
-# ===============================================
 # VISTAS DE PEDIDOS (VENDEDOR / ADMIN)
 # (Lógica de IVA e
-# ===============================================
+
 
 @login_required
 def listar_pedidos(request):
@@ -293,7 +279,6 @@ def listar_pedidos(request):
     if filtro_usuario:
         pedidos = pedidos.filter(usuario__username__icontains=filtro_usuario)
     if filtro_cliente:
-        # Nota: este filtro solo funciona si el rol no es 'Cliente', o si se usa el nombre exacto
         pedidos = pedidos.filter(cliente__razon_social__icontains=filtro_cliente)
     
     # Ordenar y finalizar
@@ -357,7 +342,7 @@ def crear_pedido_datos(request, pedido_id):
             doc.tipo_documento = tipo_doc
             doc.vendedor = request.user 
 
-            # Lógica de IVA "hacia atrás"
+            # Lógica de IVA
             total_bruto = sum((dp.subtotal for dp in pedido.detalles.all()), Decimal('0'))
             neto_calculado = (total_bruto / Decimal('1.19')).quantize(Decimal('0.00'))
             iva_calculado = total_bruto - neto_calculado
@@ -400,12 +385,12 @@ def crear_pedido_datos(request, pedido_id):
                                 doc.fecha_vencimiento = doc.fecha_emision + timedelta(days=dias)
                             except (ValueError, TypeError):
                                 doc.fecha_vencimiento = None
-                        doc.estado = 'Emitida' # PENDIENTE DE PAGO
+                        doc.estado = 'Emitida'
                     
-                    else: # Pagar ahora
+                    else: 
                         doc.fecha_emision = fecha_emision_user or timezone.localdate()
                         doc.fecha_vencimiento = doc.fecha_emision 
-                        doc.estado = 'Pagada' # PAGADA INMEDIATAMENTE
+                        doc.estado = 'Pagada' 
 
             form_valido_para_guardar = (
                 (tipo_doc == 'Boleta' and boleta_form.is_valid()) or
@@ -454,61 +439,62 @@ def crear_pedido_datos(request, pedido_id):
 
 @login_required
 def agregar_productos_pedido(request, pedido_id):
-    """Paso 3: Vendedor agrega productos al Pedido (Borrador) y confirma"""
-    
+    """Paso 3: Vendedor agrega productos al Pedido en borrador y confirma."""
+
+    # Obtener pedido y documento
     pedido = get_object_or_404(
         Pedido.objects.select_related('cliente', 'usuario', 'documentoventa'),
         id=pedido_id
     )
-    
+
     if not hasattr(pedido, 'documentoventa') or not pedido.documentoventa:
-        messages.error(request, "⚠️ Este pedido no tiene un documento asociado. Vuelva al Paso 1.")
+        messages.error(request, "Este pedido no tiene un documento asociado. Vuelva al Paso 1.")
         return redirect('ventas:listar_pedidos')
-    
+
     documento = pedido.documentoventa
+
+    # Datos para la vista
     productos = Producto.objects.filter(activo=True).order_by('nombre')
     detalles = DetallePedido.objects.filter(pedido=pedido).select_related('producto')
-    
-    carrito = []
-    for detalle in detalles:
-        carrito.append({
-            'producto_id': detalle.producto.id,
-            'nombre': detalle.producto.nombre,
-            'cantidad': detalle.cantidad,
-            'precio': detalle.precio_unitario_venta,
-            'subtotal': detalle.subtotal,
-        })
-    
+
+    carrito = [{
+        'producto_id': d.producto.id,
+        'nombre': d.producto.nombre,
+        'cantidad': d.cantidad,
+        'precio': d.precio_unitario_venta,
+        'subtotal': d.subtotal,
+    } for d in detalles]
+
     mensaje_error = None
-    
+
+
+ 
     if request.method == 'POST':
-        # --- CONFIRMAR PEDIDO (AQUÍ ESTABA FALTANDO EL DESCUENTO) ---
+
+        # -------- CONFIRMAR PEDIDO --------
         if 'confirmar_pedido' in request.POST:
             if not detalles.exists():
                 messages.error(request, "⚠️ No puede confirmar un pedido sin productos.")
                 return redirect('ventas:agregar_productos_pedido', pedido_id=pedido.id)
-            
+
             try:
                 with transaction.atomic():
-                    # 1. Validar y Descontar Stock
+
+                    # 1. Descontar stock
                     for detalle in detalles:
                         producto = detalle.producto
                         if producto.stock < detalle.cantidad:
                             raise Exception(f"Stock insuficiente para {producto.nombre}. Disponible: {producto.stock}")
-                        
-                        # ¡ESTA ES LA LÍNEA QUE FALTABA!
                         producto.stock -= detalle.cantidad
                         producto.save()
 
-                    # 2. Cambiar estados
-                    if documento.estado == 'Pagada':
-                        pedido.estado = 'Procesando' 
-                    else:
-                        pedido.estado = 'Pendiente'
+                    # 2. Cambiar estado según documento
+                    pedido.estado = 'Procesando' if documento.estado == 'Pagada' else 'Pendiente'
                     pedido.save()
-                    
-                    # 3. Asegurar detalles del documento
-                    DetalleDocumento.objects.filter(documento=documento).delete() 
+
+                    # 3. Actualizar detalles del documento
+                    DetalleDocumento.objects.filter(documento=documento).delete()
+
                     for detalle in detalles:
                         DetalleDocumento.objects.create(
                             documento=documento,
@@ -518,152 +504,38 @@ def agregar_productos_pedido(request, pedido_id):
                             subtotal=detalle.subtotal,
                             costo_unitario_venta=detalle.producto.costo_unitario
                         )
-                    
-                    messages.success(request, f"✅ Pedido #{pedido.id} confirmado y stock descontado exitosamente.")
+
+                    messages.success(request, f" Pedido #{pedido.id} confirmado y stock descontado.")
                     return redirect('ventas:detalle_pedido', pedido_id=pedido.id)
-                    
+
             except Exception as e:
-                messages.error(request, f"❌ Error al confirmar: {str(e)}")
+                messages.error(request, f" Error al confirmar: {str(e)}")
                 return redirect('ventas:agregar_productos_pedido', pedido_id=pedido.id)
-        
-        # --- AGREGAR PRODUCTO (Sin cambios, solo agrega al carrito temporal) ---
+
+        # -------- AGREGAR PRODUCTO --------
         else:
             producto_id = request.POST.get('producto_id')
             cantidad = request.POST.get('cantidad')
-            
+
             if not producto_id or not cantidad:
                 mensaje_error = "⚠️ Debe seleccionar un producto y especificar la cantidad."
             else:
                 try:
                     cantidad = int(cantidad)
                     producto = get_object_or_404(Producto, id=producto_id)
-                    
-                    if producto.stock < cantidad:
-                        mensaje_error = f"⚠️ Stock insuficiente. Solo hay {producto.stock} unidades."
-                    else:
-                        with transaction.atomic():
-                            detalle_existente = DetallePedido.objects.filter(
-                                pedido=pedido, producto=producto
-                            ).first()
-                            
-                            if detalle_existente:
-                                nueva_cantidad = detalle_existente.cantidad + cantidad
-                                if producto.stock < nueva_cantidad:
-                                    mensaje_error = f"⚠️ Stock insuficiente. Ya tiene {detalle_existente.cantidad} en el pedido."
-                                else:
-                                    detalle_existente.cantidad = nueva_cantidad
-                                    detalle_existente.save()
-                                    messages.success(request, f"✅ Cantidad actualizada: {producto.nombre}")
-                            else:
-                                DetallePedido.objects.create(
-                                    pedido=pedido,
-                                    producto=producto,
-                                    cantidad=cantidad,
-                                    precio_unitario_venta=producto.precio_unitario
-                                )
-                                messages.success(request, f"✅ Producto agregado: {producto.nombre}")
-                            
-                            actualizar_totales_documento(pedido, documento)
-                            return redirect('ventas:agregar_productos_pedido', pedido_id=pedido.id)
-                            
-                except ValueError:
-                    mensaje_error = "⚠️ La cantidad debe ser un número válido."
-                except Exception as e:
-                    mensaje_error = f"❌ Error al agregar el producto: {str(e)}"
-    
-    context = {
-        'pedido': pedido,
-        'productos': productos,
-        'carrito': carrito,
-        'mensaje_error': mensaje_error,
-    }
-    
-    return render(request, 'ventas/agregar_productos_pedido.html', context)
-    """Paso 3: Vendedor agrega productos al Pedido (Borrador) y confirma"""
-    
-    pedido = get_object_or_404(
-        Pedido.objects.select_related('cliente', 'usuario', 'documentoventa'),
-        id=pedido_id
-    )
-    
-    if not hasattr(pedido, 'documentoventa') or not pedido.documentoventa:
-        messages.error(request, "⚠️ Este pedido no tiene un documento asociado. Vuelva al Paso 1.")
-        return redirect('ventas:listar_pedidos')
-    
-    documento = pedido.documentoventa
-    productos = Producto.objects.filter(activo=True).order_by('nombre')
-    detalles = DetallePedido.objects.filter(pedido=pedido).select_related('producto')
-    
-    carrito = []
-    for detalle in detalles:
-        carrito.append({
-            'producto_id': detalle.producto.id,
-            'nombre': detalle.producto.nombre,
-            'cantidad': detalle.cantidad,
-            'precio': detalle.precio_unitario_venta,
-            'subtotal': detalle.subtotal,
-        })
-    
-    mensaje_error = None
-    
-    if request.method == 'POST':
-        # CONFIRMAR PEDIDO
-        if 'confirmar_pedido' in request.POST:
-            if not detalles.exists():
-                messages.error(request, "⚠️ No puede confirmar un pedido sin productos.")
-                return redirect('ventas:agregar_productos_pedido', pedido_id=pedido.id)
-            
-            try:
-                with transaction.atomic():
-                    # (Stock se descuenta en la siguiente vista: confirmar_pedido)
-                    
-                    if documento.estado == 'Pagada':
-                        pedido.estado = 'Procesando' # Listo para despachar
-                    else:
-                        pedido.estado = 'Pendiente' # Pendiente de pago y despacho
-                    pedido.save()
-                    
-                    DetalleDocumento.objects.filter(documento=documento).delete() 
-                    for detalle in detalles:
-                        DetalleDocumento.objects.create(
-                            documento=documento,
-                            producto=detalle.producto,
-                            cantidad=detalle.cantidad,
-                            precio_unitario_venta=detalle.precio_unitario_venta,
-                            subtotal=detalle.subtotal,
-                            costo_unitario_venta=detalle.producto.costo_unitario
-                        )
-                    
-                    messages.success(request, f"✅ Pedido #{pedido.id} confirmado exitosamente.")
-                    return redirect('ventas:detalle_pedido', pedido_id=pedido.id)
-                    
-            except Exception as e:
-                messages.error(request, f"❌ Error al confirmar el pedido: {str(e)}")
-                return redirect('ventas:agregar_productos_pedido', pedido_id=pedido.id)
-        
-        # AGREGAR PRODUCTO
-        else:
-            producto_id = request.POST.get('producto_id')
-            cantidad = request.POST.get('cantidad')
-            
-            if not producto_id or not cantidad:
-                mensaje_error = "⚠️ Debe seleccionar un producto y especificar la cantidad."
-            else:
-                try:
-                    cantidad = int(cantidad)
-                    producto = get_object_or_404(Producto, id=producto_id)
-                    
-                    # (Validación de stock se hace al confirmar, no aquí)
-                    
+
                     with transaction.atomic():
-                        detalle_existente = DetallePedido.objects.filter(
-                            pedido=pedido, producto=producto
-                        ).first()
-                        
+                        detalle_existente = DetallePedido.objects.filter(pedido=pedido, producto=producto).first()
+
                         if detalle_existente:
-                            detalle_existente.cantidad += cantidad
-                            detalle_existente.save() # El save() recalcula subtotal
-                            messages.success(request, f"✅ Cantidad actualizada: {producto.nombre}")
+                            nueva_cantidad = detalle_existente.cantidad + cantidad
+
+                            if producto.stock < nueva_cantidad:
+                                mensaje_error = f"⚠️ Stock insuficiente. Ya tiene {detalle_existente.cantidad} unidades."
+                            else:
+                                detalle_existente.cantidad = nueva_cantidad
+                                detalle_existente.save()
+                                messages.success(request, f" Cantidad actualizada: {producto.nombre}")
                         else:
                             DetallePedido.objects.create(
                                 pedido=pedido,
@@ -671,24 +543,25 @@ def agregar_productos_pedido(request, pedido_id):
                                 cantidad=cantidad,
                                 precio_unitario_venta=producto.precio_unitario
                             )
-                            messages.success(request, f"✅ Producto agregado: {producto.nombre}")
-                        
+                            messages.success(request, f" Producto agregado: {producto.nombre}")
+
                         actualizar_totales_documento(pedido, documento)
                         return redirect('ventas:agregar_productos_pedido', pedido_id=pedido.id)
-                            
+
                 except ValueError:
-                    mensaje_error = "⚠️ La cantidad debe ser un número válido."
+                    mensaje_error = " La cantidad debe ser un número válido."
                 except Exception as e:
-                    mensaje_error = f"❌ Error al agregar el producto: {str(e)}"
-    
-    context = {
+                    mensaje_error = f" Error al agregar el producto: {str(e)}"
+
+
+    #       RENDERIZAR VISTA
+    return render(request, 'ventas/agregar_productos_pedido.html', {
         'pedido': pedido,
         'productos': productos,
         'carrito': carrito,
-        'mensaje_error': mensaje_error,
-    }
-    
-    return render(request, 'ventas/agregar_productos_pedido.html', context)
+        'mensaje_error': mensaje_error
+    })
+
 
 
 def actualizar_totales_documento(pedido, documento):
@@ -724,12 +597,12 @@ def eliminar_producto_carrito(request, pedido_id, producto_id):
                 if hasattr(pedido, 'documentoventa') and pedido.documentoventa:
                     actualizar_totales_documento(pedido, pedido.documentoventa)
                 
-                messages.success(request, f"✅ Producto eliminado: {producto.nombre}")
+                messages.success(request, f"Producto eliminado: {producto.nombre}")
             else:
-                messages.warning(request, "⚠️ El producto no está en el pedido.")
+                messages.warning(request, " El producto no está en el pedido.")
                 
     except Exception as e:
-        messages.error(request, f"❌ Error al eliminar el producto: {str(e)}")
+        messages.error(request, f" Error al eliminar el producto: {str(e)}")
     
     return redirect('ventas:agregar_productos_pedido', pedido_id=pedido_id)
 
@@ -780,11 +653,10 @@ def confirmar_pedido(request, pedido_id):
 
     try:
         with transaction.atomic():
-            # Lock rows (opcional cuando usamos F updates, pero bueno para verificaciones)
             productos_locked = Producto.objects.select_for_update().filter(id__in=product_ids)
             prod_map = {p.id: p for p in productos_locked}
 
-            # 1) Verificar stock suficiente usando datos bloqueados (consistencia)
+            # 1) Verificar stock suficiente usando datos bloqueados 
             insuficientes = []
             for detalle in detalles:
                 prod = prod_map.get(detalle.producto.id) if detalle.producto else None
@@ -799,7 +671,7 @@ def confirmar_pedido(request, pedido_id):
                     insuficientes.append((detalle, f"Solicitado {detalle.cantidad}, Disponible {stock_actual}"))
 
             if insuficientes:
-                msg = "⚠️ No hay suficiente stock:\n" + "\n".join(
+                msg = " No hay suficiente stock:\n" + "\n".join(
                     f"{it.producto.nombre if it.producto else '??'}: {reason}" for it, reason in insuficientes
                 )
                 print("[confirmar_pedido] insuficientes:", insuficientes)
@@ -815,7 +687,6 @@ def confirmar_pedido(request, pedido_id):
                 # Realizamos update atómico: solo se decrementa si stock >= descuento
                 rows = Producto.objects.filter(id=prod.id, stock__gte=descuento).update(stock=F('stock') - descuento)
                 if rows == 0:
-                    # no se actualizó: algo raro (otra transacción pudo bajar el stock)
                     raise RuntimeError(f"No se pudo decrementar stock para producto {prod.id} (rows affected=0)")
 
                 # Para depuración: obtener nuevo valor
@@ -828,7 +699,6 @@ def confirmar_pedido(request, pedido_id):
 
             if hasattr(pedido, 'documentoventa') and pedido.documentoventa:
                 doc = pedido.documentoventa
-                # Decide la lógica: aquí no forzamos Pagada si estaba Emitida
                 if doc.estado != 'Emitida':
                     doc.estado = 'Pagada'
                     doc.save()
@@ -837,7 +707,6 @@ def confirmar_pedido(request, pedido_id):
             print(f"[confirmar_pedido] OK pedido {pedido.id} confirmado y stock actualizado.")
 
     except Exception as e:
-        # cualquier excepción hace rollback
         print("[confirmar_pedido] ERROR:", repr(e))
         messages.error(request, f'Ocurrió un error al confirmar el pedido: {e}')
         return redirect('ventas:detalle_pedido', pedido_id=pedido.id)
@@ -859,17 +728,15 @@ def marcar_pedido_enviado(request, pedido_id):
     return redirect('ventas:detalle_pedido', pedido_id=pedido.id)
 
 
-# ===============================================
+
 # REPORTES Y ESTADÍSTICAS
-# ===============================================
+
 
 @login_required
 def estadisticas_ventas(request):
-    # --- LÓGICA DE SEGURIDAD CORREGIDA ---
     if request.user.rol not in ['Administrador', 'Tesoreria']:
-        messages.error(request, "⚠️ No tienes permisos para acceder a esta sección.")
+        messages.error(request, " No tienes permisos para acceder a esta sección.")
         return redirect('usuarios:dashboard')
-    # --- FIN LÓGICA DE SEGURIDAD ---
 
     pedidos = (Pedido.objects.filter(estado='Enviado')
                .select_related('cliente', 'usuario', 'documentoventa')
@@ -903,11 +770,9 @@ def estadisticas_ventas(request):
 
 @login_required
 def exportar_ventas_excel(request):
-    # --- LÓGICA DE SEGURIDAD CORREGIDA ---
     if request.user.rol not in ['Administrador', 'Tesoreria']:
-        messages.error(request, "⚠️ No tienes permisos para exportar.")
+        messages.error(request, " No tienes permisos para exportar.")
         return redirect('usuarios:dashboard')
-    # --- FIN LÓGICA DE SEGURIDAD ---
 
     pedidos = (Pedido.objects.filter(estado='Enviado')
                .select_related('cliente', 'usuario', 'documentoventa')
@@ -921,14 +786,14 @@ def exportar_ventas_excel(request):
             fecha_desde = datetime.strptime(fecha_desde_str, "%Y-%m-%d").date()
             pedidos = pedidos.filter(fecha_creacion__date__gte=fecha_desde)
         except ValueError:
-            messages.error(request, "⚠️ Fecha desde inválida. Usa formato YYYY-MM-DD.")
+            messages.error(request, " Fecha desde inválida. Usa formato YYYY-MM-DD.")
 
     if fecha_hasta_str:
         try:
             fecha_hasta = datetime.strptime(fecha_hasta_str, "%Y-%m-%d").date()
             pedidos = pedidos.filter(fecha_creacion__date__lte=fecha_hasta)
         except ValueError:
-            messages.error(request, "⚠️ Fecha hasta inválida. Usa formato YYYY-MM-DD.")
+            messages.error(request, " Fecha hasta inválida. Usa formato YYYY-MM-DD.")
 
     wb = Workbook()
     ws = wb.active
@@ -948,7 +813,7 @@ def exportar_ventas_excel(request):
 
     for pedido in pedidos:
         total = pedido.documentoventa.total if hasattr(pedido, 'documentoventa') and pedido.documentoventa else 0
-        total_str = f"${total:,.0f}".replace(",", ".") # Formato chileno
+        total_str = f"${total:,.0f}".replace(",", ".") 
 
         ws.append([
             pedido.id,
@@ -977,8 +842,7 @@ def exportar_ventas_excel(request):
     wb.save(response)
     return response
 
-# --- (Otras vistas que puedas tener) ---
-# (Dejé la vista 'vista_checkout' por si la usabas, aunque parece duplicada de 'cliente_checkout')
+
 @login_required
 def vista_checkout(request):
     try:
@@ -991,7 +855,6 @@ def vista_checkout(request):
     if request.method == 'POST':
         form = CheckoutForm(request.POST, instance=cliente_actual)
         if form.is_valid():
-            # ... (tu lógica) ...
             return redirect('ventas:compra_exitosa') 
     else:
         form = CheckoutForm(instance=cliente_actual)
@@ -1007,7 +870,7 @@ def exportar_reporte_rentabilidad(request):
         messages.error(request, "⚠️ No tienes permisos para exportar este reporte.")
         return redirect('usuarios:dashboard')
 
-    # 1. Obtener los detalles de documentos (ventas finalizadas)
+    # 1. Obtener los detalles de documentos 
     detalles_vendidos = DetalleDocumento.objects.filter(
         documento__pedido__estado='Enviado' 
     ).select_related(
@@ -1015,7 +878,7 @@ def exportar_reporte_rentabilidad(request):
         'producto', 'producto__proveedor'
     ).order_by('-documento__fecha_emision')
 
-    # 2. Aplicar filtros de fecha (LÓGICA ROBUSTA)
+    # 2. Aplicar filtros de fecha 
     fecha_desde_str = request.GET.get('fecha_desde')
     fecha_hasta_str = request.GET.get('fecha_hasta')
 
@@ -1104,7 +967,6 @@ def exportar_reporte_rentabilidad(request):
             f"{margen_linea:.2f}%"
         ])
 
-    # Ajustar ancho de columnas y crear respuesta HTTP (omito las líneas de ajuste de columnas)
 
     response = HttpResponse(
         content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'

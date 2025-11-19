@@ -14,7 +14,6 @@ class ProductoForm(forms.ModelForm):
         }
 
 
-# --- AÑADE ESTE NUEVO FORMULARIO ---
 class ImportCostoForm(forms.Form):
     """
     Formulario para subir el archivo Excel con los costos.

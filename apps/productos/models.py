@@ -15,13 +15,12 @@ class Categoria(models.Model):
 
 
 class Producto(models.Model):
-    # Información básica
     codigo = models.CharField(max_length=50, unique=True, verbose_name='Código')
     nombre = models.CharField(max_length=255)
     descripcion = models.TextField(blank=True, null=True, verbose_name='Descripción')
     foto = models.ImageField(upload_to='images/', blank=True, null=True, verbose_name='Foto')
     
-    # Categorización
+
     categoria = models.ForeignKey(
         Categoria, 
         on_delete=models.SET_NULL, 
@@ -30,7 +29,7 @@ class Producto(models.Model):
         verbose_name='Categoría'
     )
     
-    # Precios y costos
+
     precio_unitario = models.DecimalField(
         max_digits=10, 
         decimal_places=2,
