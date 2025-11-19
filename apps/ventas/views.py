@@ -22,7 +22,14 @@ from apps.ventas.forms import (
     PedidoForm, TipoDocumentoForm, BoletaForm, 
     FacturaForm, CheckoutForm
 )
+from django.shortcuts import get_object_or_404, redirect
+from django.contrib import messages
+from django.db import transaction
+from django.db.models import F
+from django.utils import timezone
+from decimal import Decimal
 
+from apps.productos.models import Producto
 
 # ===============================================
 # VISTAS DEL CARRITO DE CLIENTE
@@ -112,8 +119,11 @@ def cliente_remove_from_cart(request, producto_id):
 def cliente_checkout(request):
     """
     Muestra el formulario de checkout y procesa la compra.
-    ¡AHORA VERIFICA SI EL PERFIL ESTÁ COMPLETO!
+    Ahora redirige al cliente al documento (Boleta/Factura) tras la compra.
     """
+    # ----------------------------------------------------
+    # Lógica de verificación de cliente y carrito
+    # ----------------------------------------------------
     if request.user.rol != 'Cliente':
         return redirect('usuarios:dashboard')
 
@@ -122,7 +132,6 @@ def cliente_checkout(request):
         messages.warning(request, 'Tu carrito está vacío.')
         return redirect('ventas:cliente_view_cart')
 
-    # --- ¡INICIO DE LA MODIFICACIÓN! ---
     try:
         # Intenta obtener el perfil del cliente
         cliente_actual = request.user.perfil_cliente
@@ -130,16 +139,14 @@ def cliente_checkout(request):
         # ¡No existe! Lo mandamos a crear su perfil.
         messages.error(request, '¡Debes completar tu perfil antes de poder comprar!')
         return redirect('clientes:completar_perfil')
-    # --- FIN DE LA MODIFICACIÓN ---
 
-    # (El resto de la vista sigue igual que antes)
+    # Lógica de cálculo del carrito (se mantiene)
     product_ids = cart.keys()
     productos_en_db = Producto.objects.filter(id__in=product_ids)
     
     cart_items = []
     total_carrito = Decimal('0.00')
     for producto in productos_en_db:
-        # ... (lógica de cálculo de carrito) ...
         cantidad = cart.get(str(producto.id), 0)
         if cantidad > 0:
             subtotal = producto.precio_unitario * cantidad
@@ -151,6 +158,9 @@ def cliente_checkout(request):
             })
 
 
+    # ----------------------------------------------------
+    # Procesamiento del POST
+    # ----------------------------------------------------
     if request.method == 'POST':
         form = CheckoutForm(request.POST, instance=cliente_actual)
         tipo_documento = request.POST.get('tipo_documento', 'Boleta')
@@ -164,14 +174,15 @@ def cliente_checkout(request):
             
             try:
                 with transaction.atomic():
-                    # ... (TODA tu lógica de crear Pedido, Documento, Pago, y Detalles) ...
-                    # (Esta parte no necesita cambios)
+                    # 1. Crear Pedido
                     nuevo_pedido = Pedido.objects.create(
                         cliente=cliente_actual_guardado,
                         usuario=request.user, 
                         total=total_carrito,
                         estado='Pendiente'
                     )
+                    
+                    # 2. Crear DetallePedido y descontar stock
                     for item in cart_items:
                         producto = item['producto']
                         cantidad = item['cantidad']
@@ -186,11 +197,13 @@ def cliente_checkout(request):
                         producto.stock -= cantidad
                         producto.save()
                     
+                    # 3. Calcular totales para Documento
                     total_bruto = total_carrito.quantize(Decimal('0.00'))
                     neto_calculado = (total_bruto / Decimal('1.19')).quantize(Decimal('0.00'))
                     iva_calculado = total_bruto - neto_calculado
                     fecha_actual = timezone.now()
 
+                    # 4. Crear DocumentoVenta
                     documento = DocumentoVenta.objects.create(
                         pedido=nuevo_pedido,
                         tipo_documento=tipo_documento,
@@ -208,6 +221,8 @@ def cliente_checkout(request):
                         giro=cliente_actual_guardado.giro,
                         direccion=cliente_actual_guardado.direccion
                     )
+                    
+                    # 5. Crear DetalleDocumento
                     for item in cart_items:
                         DetalleDocumento.objects.create(
                             documento=documento,
@@ -215,15 +230,21 @@ def cliente_checkout(request):
                             cantidad=item['cantidad'],
                             precio_unitario_venta=item['producto'].precio_unitario
                         )
+                        
+                    # 6. Crear Pago
                     Pago.objects.create(
                         documento=documento,
                         monto_pagado=total_bruto,
                         metodo_pago=medio_de_pago,
                         referencia="Pago E-Commerce"
                     )
+                    
+                    # 7. Limpiar carrito y Redirigir (¡PUNTO CORREGIDO!)
                     del request.session['cart']
-                    messages.success(request, f'¡Compra realizada con éxito! {tipo_documento} #{documento.folio} ha sido generada y pagada.')
-                    return redirect('usuarios:dashboard')
+                    messages.success(request, f'¡Compra realizada con éxito! {tipo_documento} #{documento.folio} ha sido generada y pagada. Puedes verla a continuación.')
+                    
+                    # Redirección al detalle del documento recién creado
+                    return redirect('documentos:detalle_documento', documento_id=documento.id)
 
             except Exception as e:
                 print(f"Error al procesar el pedido: {e}") 
@@ -232,7 +253,10 @@ def cliente_checkout(request):
         else:
             messages.error(request, 'Por favor, corrige los errores en el formulario.')
 
-    else: # GET
+    # ----------------------------------------------------
+    # Procesamiento del GET
+    # ----------------------------------------------------
+    else: 
         form = CheckoutForm(instance=cliente_actual)
 
     context = {
@@ -732,14 +756,7 @@ def detalle_pedido(request, pedido_id):
 
 
 
-from django.shortcuts import get_object_or_404, redirect
-from django.contrib import messages
-from django.db import transaction
-from django.db.models import F
-from django.utils import timezone
-from decimal import Decimal
 
-from apps.productos.models import Producto
 
 @login_required
 def confirmar_pedido(request, pedido_id):

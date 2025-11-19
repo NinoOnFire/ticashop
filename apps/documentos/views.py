@@ -49,6 +49,17 @@ from django.db.models import Count
 from .models import DocumentoVenta
 from apps.clientes.models import Cliente
 
+# apps/documentos/views.py
+from django.shortcuts import render, get_object_or_404
+from django.contrib.auth.decorators import login_required
+from django.utils import timezone
+from datetime import timedelta
+from decimal import Decimal
+
+from .models import DocumentoVenta, DetalleDocumento
+
+
+
 @login_required
 def listar_documentos(request):
     # Inicializar la consulta base para solo Facturas
@@ -146,15 +157,6 @@ def crear_documento_desde_pedido(request, pedido_id):
 
 
 
-# apps/documentos/views.py
-from django.shortcuts import render, get_object_or_404
-from django.contrib.auth.decorators import login_required
-from django.utils import timezone
-from datetime import timedelta
-from decimal import Decimal
-
-from .models import DocumentoVenta, DetalleDocumento
-
 @login_required
 def detalle_documento(request, documento_id):
     """
@@ -212,13 +214,11 @@ from .models import DocumentoVenta, DetalleDocumento
 @login_required
 def detalle_documento(request, documento_id):
     """
-    Muestra detalle de documento con layout distinto para Factura / Boleta.
-    El contexto esperado por la plantilla:
-    doc, items, empresa, neto, iva, total, is_factura, show_nc_button
+    Muestra el detalle de un documento.
+    Aplica lógica para mostrar o no el botón de Nota de Crédito.
     """
     doc = get_object_or_404(DocumentoVenta.objects.select_related('cliente','vendedor'), id=documento_id)
 
-    # Items (sigues usando DetalleDocumento)
     items = DetalleDocumento.objects.filter(documento=doc).select_related('producto')
 
     # Datos de la empresa (sustituye por tu modelo Empresa si lo prefieres)
@@ -241,12 +241,16 @@ def detalle_documento(request, documento_id):
     # Flag para template
     is_factura = (doc.tipo_documento == 'Factura')
 
-    # Mostrar botón NC solo para facturas dentro del plazo de 30 días y no anuladas/devueltas
+    # 1. Lógica de visibilidad por fecha y estado (Para ADMIN/TESORERÍA)
     show_nc_button = False
     if is_factura and doc.fecha_emision:
         fecha_emision_date = doc.fecha_emision.date() if hasattr(doc.fecha_emision, 'date') else doc.fecha_emision
         limite = fecha_emision_date + timedelta(days=30)
         show_nc_button = (timezone.localdate() <= limite) and (doc.estado not in ['Anulada', 'Devuelta', 'Devuelta Parcial'])
+
+    # 2. LÓGICA DE SEGURIDAD DE ROL (La que nos ahorra el problema)
+    if request.user.rol == 'Cliente':
+        show_nc_button = False # <-- Anula cualquier condición anterior si es un cliente
 
     context = {
         'doc': doc,
