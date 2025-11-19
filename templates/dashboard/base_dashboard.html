@@ -65,11 +65,13 @@
                         {% if request.user.is_authenticated %}
 
                             {% if request.user.rol == 'Administrador' %}
+                            <!--
                             <li class="nav-item">
                                 <a class="nav-link" href="/admin/">
                                     <i class="fas fa-cog"></i> Administración
                                 </a>
                             </li>
+                            -->
                             <li class="nav-item">
                                 <a class="nav-link {% if request.resolver_match.view_name == 'usuarios:listar_usuarios' %}active{% endif %}" 
                                    href="{% url 'usuarios:listar_usuarios' %}">

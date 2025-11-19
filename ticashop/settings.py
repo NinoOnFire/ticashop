@@ -106,16 +106,8 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 LOGIN_REDIRECT_URL = '/usuarios/dashboard/'
 LOGOUT_REDIRECT_URL = '/usuarios/login/'
 
-# --- AÑADE ESTA LÍNEA ---
-# Esta es la URL a la que se redirigirá a los invitados
-# cuando intenten hacer una acción que requiera login (como comprar).
 LOGIN_URL = 'usuarios:login' 
-# --- FIN DE LA LÍNEA ---
 
-# --- CONFIGURACIÓN DE ENVÍO DE EMAIL ---
-# (Usa Gmail para desarrollo / universidad)
-
-# COMENTA O BORRA TODAS ESTAS LÍNEAS:
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
@@ -125,4 +117,3 @@ DEFAULT_FROM_EMAIL = 'TicaShop Latam <ninovictorvargas@gmail.com>'
 EMAIL_HOST_PASSWORD = 'hsfx rvbf dfpt ntym'
 
 
-#EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
