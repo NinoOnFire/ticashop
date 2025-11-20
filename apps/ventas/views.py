@@ -731,7 +731,7 @@ def marcar_pedido_enviado(request, pedido_id):
 # REPORTES Y ESTADÍSTICAS
 
 
-@login_required
+login_required
 def estadisticas_ventas(request):
     if request.user.rol not in ['Administrador', 'Tesoreria']:
         messages.error(request, " No tienes permisos para acceder a esta sección.")
@@ -759,22 +759,34 @@ def estadisticas_ventas(request):
             Q(usuario__last_name__icontains=vendedor_query)
         )
 
-    # CÁLCULO DE TOTALES (se mantiene igual)
-    total_ventas = pedidos.count()
-    monto_total = sum(
-        p.documentoventa.total 
-        for p in pedidos 
-        if hasattr(p, 'documentoventa') and p.documentoventa and p.documentoventa.total
-    )
+    # Inicializar montos usando Decimal para evitar errores de precisión y el TypeError
+    monto_total = Decimal('0.00')
+    monto_base_comision = Decimal('0.00')
+    
+    # CÁLCULO DE TOTALES: Recorremos los pedidos ya filtrados
+    for pedido in pedidos:
+        # Verificamos que el documento de venta y su total existan
+        if hasattr(pedido, 'documentoventa') and pedido.documentoventa and pedido.documentoventa.total is not None:
+            monto_venta = pedido.documentoventa.total
+            
+            # 1. Sumamos al Monto Total (para la tarjeta general)
+            monto_total += monto_venta
+            
+            # 2. Sumamos al Monto Comisionable (solo si el usuario es Vendedor)
+            if pedido.usuario.rol == 'Vendedor':
+                monto_base_comision += monto_venta
+    
 
+    total_ventas = pedidos.count()
+    
 
     TASA_COMISION = Decimal('0.01')
-    comision_total = monto_total * TASA_COMISION
+    comision_total = monto_base_comision * TASA_COMISION
 
     context = {
         'pedidos': pedidos,
         'total_ventas': total_ventas,
-        'monto_total': monto_total,
+        'monto_total': monto_total, 
         'comision_total': comision_total, 
         'fecha_desde': fecha_desde,
         'fecha_hasta': fecha_hasta,
