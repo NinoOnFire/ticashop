@@ -14,40 +14,25 @@
         </a>
     </div>
 
-    <div class="row mb-4">
-        <div class="col-md-6">
-            <div class="card shadow-sm">
-                <div class="card-body text-center">
-                    <h5 class="text-muted">Total de Ventas</h5>
-                    <h2 class="text-primary">{{ total_ventas }}</h2>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-6">
-            <div class="card shadow-sm">
-                <div class="card-body text-center">
-                    <h5 class="text-muted">Monto Total</h5>
-                    <h2 class="text-success">${{ monto_total|floatformat:0|intcomma }}</h2>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <div class="card shadow-sm mb-4">
         <div class="card-header bg-primary text-white">
-            <i class="bi bi-funnel"></i> Filtrar por Fecha
+            <i class="bi bi-funnel"></i> Filtrar
         </div>
         <div class="card-body">
             <form method="get" class="row g-3" id="filtro-form">
-                <div class="col-md-4">
+                <div class="col-md-3">
                     <label for="fecha_desde" class="form-label">Desde</label>
                     <input type="date" name="fecha_desde" id="fecha_desde" class="form-control" value="{{ fecha_desde }}">
                 </div>
-                <div class="col-md-4">
+                <div class="col-md-3">
                     <label for="fecha_hasta" class="form-label">Hasta</label>
                     <input type="date" name="fecha_hasta" id="fecha_hasta" class="form-control" value="{{ fecha_hasta }}">
                 </div>
-                <div class="col-md-4 d-flex align-items-end">
+                <div class="col-md-4">
+                    <label for="vendedor" class="form-label">Vendedor</label>
+                    <input type="text" name="vendedor" id="vendedor" class="form-control" placeholder="Nombre de usuario o nombre" value="{{ vendedor }}">
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
                     <button type="submit" class="btn btn-primary w-100">
                         <i class="bi bi-search"></i> Filtrar
                     </button>
@@ -55,19 +40,50 @@
             </form>
         </div>
     </div>
-
+    
+    <h3 class="mt-4 mb-3">✅ Resumen del Período Filtrado</h3>
+    <hr>
+    
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card shadow-sm border-primary">
+                <div class="card-body text-center">
+                    <h5 class="text-muted">Total de Ventas (en período)</h5>
+                    <h2 class="text-primary">{{ total_ventas }}</h2>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="card shadow-sm border-success">
+                <div class="card-body text-center">
+                    <h5 class="text-muted">Monto Total</h5>
+                    <h2 class="text-success">${{ monto_total|floatformat:0|intcomma }}</h2>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="card shadow-sm border-warning">
+                <div class="card-body text-center">
+                    <h5 class="text-muted">Comisión (1%)</h5>
+                    <h2 class="text-warning">${{ comision_total|floatformat:0|intcomma }}</h2>
+                </div>
+            </div>
+        </div>
+    </div>
     <div class="text-end mb-3 d-flex justify-content-end gap-2">
         
         <a id="exportar-rentabilidad-btn"
            class="btn btn-primary btn-lg"
            href="#">
-            <i class="bi bi-cash-coin"></i> Exportar Rentabilidad (Detallado)
+             <i class="bi bi-cash-coin"></i> Exportar Rentabilidad (Detallado)
         </a>
 
         <a id="exportar-resumen-btn" 
            class="btn btn-success btn-lg"
            href="#">
-            <i class="bi bi-file-earmark-excel"></i> Exportar Ventas (Resumen)
+             <i class="bi bi-file-earmark-excel"></i> Exportar Ventas (Resumen)
         </a>
     </div>
 
@@ -132,9 +148,10 @@ document.addEventListener('DOMContentLoaded', function() {
     const url = new URL(window.location.href);
     const fechaDesde = url.searchParams.get('fecha_desde') || '';
     const fechaHasta = url.searchParams.get('fecha_hasta') || '';
+    const vendedor = url.searchParams.get('vendedor') || ''; 
 
-    // Parámetros base a pasar a las vistas de exportación
-    const baseParams = `?fecha_desde=${fechaDesde}&fecha_hasta=${fechaHasta}`;
+    // Parámetros base a pasar a las vistas de exportación, incluyendo el vendedor
+    const baseParams = `?fecha_desde=${fechaDesde}&fecha_hasta=${fechaHasta}&vendedor=${vendedor}`;
 
     // 1. Asignar el enlace de Rentabilidad
     const rentabilidadBtn = document.getElementById('exportar-rentabilidad-btn');

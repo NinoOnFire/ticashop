@@ -25,7 +25,7 @@ from django.db import transaction
 from django.db.models import F
 from django.utils import timezone
 from decimal import Decimal
-
+from django.db.models import Q
 from apps.productos.models import Producto
 
 # VISTAS DEL CARRITO DE CLIENTE
@@ -272,7 +272,6 @@ def listar_pedidos(request):
             pedidos = pedidos.none()
             messages.warning(request, "⚠️ Debes completar tu perfil para ver tus pedidos.")
 
-    # --- Filtros adicionales (Vendedor/Admin/General) ---
     filtro_usuario = request.GET.get('usuario')
     filtro_cliente = request.GET.get('cliente')
 
@@ -744,12 +743,23 @@ def estadisticas_ventas(request):
 
     fecha_desde = request.GET.get('fecha_desde')
     fecha_hasta = request.GET.get('fecha_hasta')
+    vendedor_query = request.GET.get('vendedor') 
 
+    # Aplicar filtros de fecha
     if fecha_desde:
         pedidos = pedidos.filter(fecha_creacion__date__gte=fecha_desde)
     if fecha_hasta:
         pedidos = pedidos.filter(fecha_creacion__date__lte=fecha_hasta)
 
+    # Aplicar filtro por vendedor
+    if vendedor_query:
+        pedidos = pedidos.filter(
+            Q(usuario__username__icontains=vendedor_query) | 
+            Q(usuario__first_name__icontains=vendedor_query) |
+            Q(usuario__last_name__icontains=vendedor_query)
+        )
+
+    # CÁLCULO DE TOTALES (se mantiene igual)
     total_ventas = pedidos.count()
     monto_total = sum(
         p.documentoventa.total 
@@ -757,16 +767,21 @@ def estadisticas_ventas(request):
         if hasattr(p, 'documentoventa') and p.documentoventa and p.documentoventa.total
     )
 
+
+    TASA_COMISION = Decimal('0.01')
+    comision_total = monto_total * TASA_COMISION
+
     context = {
         'pedidos': pedidos,
         'total_ventas': total_ventas,
         'monto_total': monto_total,
+        'comision_total': comision_total, 
         'fecha_desde': fecha_desde,
         'fecha_hasta': fecha_hasta,
+        'vendedor': vendedor_query,
     }
 
     return render(request, 'ventas/estadisticas_ventas.html', context)
-
 
 @login_required
 def exportar_ventas_excel(request):
